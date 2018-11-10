@@ -1,9 +1,12 @@
 package com.leading.roomwordsample;
 
+import android.arch.persistence.db.SupportSQLiteDatabase;
 import android.arch.persistence.room.Database;
 import android.arch.persistence.room.Room;
 import android.arch.persistence.room.RoomDatabase;
 import android.content.Context;
+import android.os.AsyncTask;
+import android.support.annotation.NonNull;
 
 /**
  * @author Zj
@@ -41,6 +44,7 @@ public abstract class WordRoomDatabase extends RoomDatabase {
                     // Create database here
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
                             WordRoomDatabase.class, "word_database")
+                            .addCallback(sRoomDatabaseCallback)
                             .build();
                 }
             }
@@ -49,4 +53,36 @@ public abstract class WordRoomDatabase extends RoomDatabase {
     }
 
     public abstract WordDao wordDao();
+
+    /**
+     * 由于不能对UI线程执行Room数据库操作，因此onOpen()创建并执行AsyncTask来向数据库添加内容
+     */
+    private static RoomDatabase.Callback sRoomDatabaseCallback = new RoomDatabase.Callback() {
+        @Override
+        public void onOpen(@NonNull SupportSQLiteDatabase db) {
+            super.onOpen(db);
+            new PopulateDbAsync(INSTANCE).execute();
+        }
+    };
+
+    /**
+     * 它删除数据库的内容，然后用两个单词“Hello”和“World”填充数据库
+     */
+    private static class PopulateDbAsync extends AsyncTask<Void, Void, Void> {
+        private final WordDao mDao;
+
+        public PopulateDbAsync(WordRoomDatabase wordRoomDatabase) {
+            this.mDao = wordRoomDatabase.wordDao();
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            mDao.deleteAll();
+            Word word = new Word("Hello");
+            mDao.insert(word);
+            word = new Word("World");
+            mDao.insert(word);
+            return null;
+        }
+    }
 }
